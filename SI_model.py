@@ -2,10 +2,13 @@
 
 Should contain all functions needed to simulate analytically and through model the SI model
 
+Note: doesn't make sense to have 'SI' in funciton names when whole library is called 'SI_model'
+
 '''
 
 import network_manipulation as nm
 import numpy as np
+import random
 
 def intitialise_potential(N, initial, threshold): # initial defines the fraction of populations that is initially infected
     P = {} # another graph to keep track of potential
@@ -67,7 +70,7 @@ def simulate_SI(N, P, T, h, threshold):
     limit = T 
     for t in range(limit):
         #time.sleep(1)
-        P, F = weighted_propagate_SI(P, N, threshold)
+        P, F = propagate_SI(P, N, threshold)
         activity.append(sum(F) / size)
     return activity
 
@@ -79,7 +82,7 @@ def simulate_SI_v2(N, T, initial, threshold):
     P = intitialise_potential(N, initial, threshold)
     for t in range(T):
         P = propagate_SI_v2(P, N, threshold)
-        activities.append(activity(P))
+        activities.append(activity(P, threshold))
     return activities
 
 def smooth_SI_v2(N, T, initial, threshold, M): # M is number of runs over which to smooth over
@@ -138,11 +141,6 @@ def SI(time, beta, h):
         I_new = h * beta * I_old * (1 - I_old) + I_old
         I_old = I_new
     return I_old
-
-smoothed_SI = np.array(smoothed_SI)
-
-popt, pcov = curve_fit(SI, t, smoothed_SI)
-
 
 
 # TO DO
