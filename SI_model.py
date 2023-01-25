@@ -117,27 +117,11 @@ def smooth_SI(N, I, T, M, h, threshold = 10): # M is number of runs over which t
         smoothed.append(total)
     return smoothed
 
-#______________________`siu ______________________`
-
-
-def SI_diff(initial, beta, T, h): # differential equation representing si model with N total nodes
-    I = initial # intial fraction of infected population
-    spread = []
-    limit = int(T//h) + 1
-    for t in range(limit): # can also run until population is fully infected
-        I_new = h * beta * I * (1 - I) + I# taking N = 1 as total population
-        I = I_new
-        spread.append(I_new)
-    return spread
-
-
-#______________________`siu ______________________`
-
-def analytic_sol(x, beta, c):
+def analytic_SI(x, beta, c):
     return np.exp(beta*x+c) / (1 + np.exp(beta*x+c))
 
-def integration_const(I):
-    return np.log(I/(1-I))
+def integration_const(initial):
+    return np.log(initial/(1-initial))
 
 def generate_t(T, h): # generates time axis from 0 to T with increments of h
     return np.arange(0, T, h)
