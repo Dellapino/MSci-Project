@@ -22,7 +22,7 @@ def intitialise_potential(N, initial, threshold): # initial defines the fraction
         else:
             P[node] = 0
     return P
-
+        
 def propagate(P, N, threshold, strength = 1, beta = 0.6): # add checks for valid parameter values
     '''
     propagates contagion according to transmission prob and infection strength
