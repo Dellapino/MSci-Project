@@ -26,7 +26,7 @@ def propagate(G, threshold, transmission = 1, beta = 0.6):
         if G.nodes[node]['potential'] >= threshold:
             for connection in connections:
                 if np.random.random() < beta:
-                    G.nodes[connection]['potential'] += transmission * G[node][connection]['weight']
+                    G.nodes[connection]['potential'] += transmission * G[node][connection][0]['weight']
     return G
 
 def activity(G, threshold):
@@ -49,6 +49,7 @@ def smooth(G, initial, threshold, T, M):
     smoothed = []
     runs = []
     for i in range(M):
+        print(i)
         G = initialise_potential(G, initial, threshold)
         run = simulate(G, initial, threshold, T)
         runs.append(run)
