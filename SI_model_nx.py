@@ -26,7 +26,7 @@ def propagate(G, threshold, transmission = 1, beta = 0.6):
         if G.nodes[node]['potential'] >= threshold:
             for connection in connections:
                 if np.random.random() < beta:
-                    G.nodes[connection]['potential'] += transmission * G[node][connection][0]['weight']
+                    G.nodes[connection]['potential'] += transmission * G[node][connection]['weight']
     return G
 
 def activity(G, threshold):

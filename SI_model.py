@@ -10,7 +10,7 @@ import network_manipulation as nm
 import numpy as np
 import random
 
-def intitialise_potential(N, initial, threshold): # initial defines the fraction of populations that is initially infected
+def initialise_potential(N, initial, threshold): # initial defines the fraction of populations that is initially infected
     '''
     Randomly infects a given fraction of the popualtion
     '''
