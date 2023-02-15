@@ -130,12 +130,12 @@ def build_graph(name):
     return graph
 
 # try use G.add_edge(2, 3, {'weight': 3.1415}) to build graph, WORKS!
-def build_nxgraph(name):
+def build_nxgraph(name, normed = True):
     network = build_network(name)
     nodes = list(network.keys())
     graph = nx.Graph()
     connections = find_connections(network)
-    strengths = find_strengths(network)
+    strengths = find_strengths(network, normed)
     for i in range(len(nodes)):
         for j in range(len(connections[i])):
             graph.add_edge(nodes[i], connections[i][j], weight = strengths[i][j])
@@ -148,6 +148,9 @@ def build_nxgraph(name):
 Need to convert this to work with new network definition and be able to generate
 realistic weights in an arbitrarily sized network
 '''
+
+def scale_degree_dist(degrees):
+    return False
 
 def avg_degree_intel(graph_dict):
     size = len(graph_dict)
@@ -206,17 +209,13 @@ def generate_degree_dist(avg, std, length):
 def generate_degree_dist_v2(avg, std, length):
     '''
     Generates a degree distribution according to normal distribution
-    
     need to round
-    
     '''
     degree_dist = []
     while len(degree_dist) < length - 1:
         degree = np.random.normal(avg, std)
         degree_dist.append(degree)
-    
     degree_dist = np.array(degree_dist)
-    
     return degree_dist
 
 def generate_degree_dist_v3(avg, std, length):
