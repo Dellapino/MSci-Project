@@ -253,5 +253,10 @@ def adjacency_dict(nx_graph):
         adjacency_dict[keys[i]] = [n for n in nx_graph.neighbors(keys[i])]
     return adjacency_dict
 
+# functions needed for scaling up network
+
+
+
+
 
 # find average weight / distribution of weights + other network measures

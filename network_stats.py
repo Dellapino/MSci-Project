@@ -172,13 +172,16 @@ Current task: sample from distributions
 '''
 
 class degree_distribution(sps.rv_continuous): 
-    def _pdf(self, x, fit):
-        return degree_func(x, *fit)
+    def _pdf(self, x, a, b, c):
+        return degree_func(x, a, b, c)
+    
+    def _argcheck(self, a, b, c):
+        return True
     
 class weight_distribution(sps.rv_continuous):
-    def _pdf(self, x, fit):
-        return weight_func(x, *fit)
+    def _pdf(self, x, a, b):
+        return weight_func(x, a, b)
     
-    def _argcheck(self, fit):
+    def _argcheck(self, a, b):
         return True
     
