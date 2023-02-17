@@ -73,7 +73,6 @@ def collect_frames_nx(G, initial, threshold, T, layout = 'spring'):
         
     G = sinx.initialise_potential(G, initial, threshold)
     
-    
     positions = nx.spring_layout(G)
     #positions = nx.kamada_kawai_layout(G)
     #positions = nx.nx_agraph.graphviz_layout(G)
