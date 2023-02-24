@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
 from tabulate import tabulate
 import scipy.stats as sps
+import networkx as nx
 
 def analyse_graph(graph):
     weights = []
@@ -53,7 +54,7 @@ def log_binning(data, scale = 1.2, normed = True):
         bin_edges = np.array(bin_edges) / end
     
     else:
-        end = max(data)        
+        end = max(data)
         wmax = np.ceil(np.log(end) / np.log(scale))
         bin_edges = scale ** np.arange(1,wmax + 1)
         
@@ -83,6 +84,9 @@ def power(x, a, b):
 
 def weight_func(x, a, b):
     return a * ((x)**b)
+
+def weight_func(x, a, b, c):
+    return  b * ((x)**c) / np.exp(x*a)
 
 def log_normal(x, avg, std, a, b):
     return (1/((x+b)/a)*std) * np.exp(-np.log(((x+b)/a)-avg)**2/(2*std**2))
@@ -154,34 +158,177 @@ def compare_scale(fit_func, data, scales, normed, show_all = False):
         print(tabulate([[scales[best], round(avg_errs[best], 2)]], headers=['best scaling factor', 'best average error']))
     return scales[best], avg_errs[best] # pass these into optimize_scale
 
-
-''' 
-Currently uncritical but needs to be developed at some point iA
-'''
-
-def optimize_scale(precision = 0.01):
-    best_scale_for_network = np.arange(1.5, 3.0, precision)
-    # some extra steps
-    return best_scale_for_network
-    
+def optimize_scale(weights, precision = 0.01):
+    scales = np.arange(1.5, 3.0, precision)
+    best_scale = compare_scale(weight_func, weights, scales, False, False)
+    return best_scale
     
 '''
 Current task: sample from distributions
-    1. degree dist
-    2. weight dist
+    1. degree dist - Done
+    2. weight dist - Done
+'''
+    
+def inverse_weight_func(x, a, b):
+    return (x/a) ** (1/b)
+
+def fit_weights(weights, scale):
+    x, y = log_binning(weights, scale, False)
+    fit, cov = curve_fit(weight_func, x, y)
+    return fit, cov
+
+def fit_degrees(degrees):
+    x, y = linear_binning(degrees, 8, 1)
+    fit, cov = curve_fit(degree_func, x, y)
+    return fit, cov
+
+def sample_weights(sample_num, fit): # can add normalization if needed but I'm begining to see this as uneccessary
+    randys = np.random.randint(1, 1000, size = sample_num)
+    weight_samples = inverse_weight_func(randys, *fit)
+    #norm = max(weight_samples)
+    #weight_samples = weight_samples / norm
+    return weight_samples
+
+def set_weights(G, fit):
+    nodes = list(G.nodes)
+    for node in nodes:
+        connections = list(G.neighbors(node))
+        num_edges = len(connections)
+        if num_edges == 0:
+            print('What the dog doin')
+        else:
+            weights = sample_weights(len(connections), fit)
+        for i, connection in enumerate(connections):
+            G[node][connection]['weight'] = weights[i]
+    return G   
+
+def set_weights(G, sample_func):
+    nodes = list(G.nodes)
+    for node in nodes:
+        connections = list(G.neighbors(node))
+        num_edges = len(connections)
+        if num_edges == 0:
+            print('What the dog doin')
+        else:
+            weights = sample_func.rvs(size = len(connections))
+            weights = np.ceil(weights).astype(int) # will only work in non normed case
+            weights = [w for w in weights if w !=0]
+        for i, connection in enumerate(connections):
+            G[node][connection]['weight'] = weights[i]
+    return G   
+
+def generate_graph(num_nodes, dfit, wfit):
+    degree_dist = degree_distribution(a = 0) # need to use dfit here somehow
+    degree_samples = degree_dist.rvs(size = num_nodes)  
+    degree_samples = np.ceil(degree_samples).astype(int)  
+    G = nx.configuration_model(degree_samples, create_using = nx.Graph)
+    G = set_weights(G, wfit)
+    return G
+
+'''
+Current task:
+    1. Find average weight (multiple schemes to define what is considered 1 interaction)
+    2. Use this to inform threshold + see how many contacts before we expect infection
+    3. Check if larger and smaller graphs have same properties
+    4. Implement Neuro-SIR model
 '''
 
-class degree_distribution(sps.rv_continuous): 
-    def _pdf(self, x, a, b, c):
-        return degree_func(x, a, b, c)
-    
-    def _argcheck(self, a, b, c):
-        return True
-    
-class weight_distribution(sps.rv_continuous):
-    def _pdf(self, x, a, b):
-        return weight_func(x, a, b)
-    
-    def _argcheck(self, a, b):
-        return True
-    
+def average_interaction_1(weights): # Basic version
+    return sum(weights) / len(weights)
+
+def average_interaction_2(fit): # via setting derivate of invse function == -1 for graph transition
+    a = fit[0]
+    b = fit[1]
+    return a * ((-b) ** (b/(1-b)))
+
+def average_interaction_3(fit):
+    a = fit[0]
+    b = fit[1]
+    gradient = -1
+    return (gradient/(a*b)) ** (1/(b-1))
+
+def threshold(mins): # threshold based on sociopatterns data being in 20 sec increments
+    return 3*mins
+
+def degree_centrality(G):
+    connectivty = nx.degree_centrality(G)
+    nodes = list(connectivty.keys())
+    total = 0
+    for node in nodes:
+        total += connectivty[node]
+    return total
+
+def degree_centrality(G):
+    nodes = G.number_of_nodes()
+    edges = G.number_of_edges()
+    return edges / nodes
+
+def weight_centrality(G):
+    nodes = list(G.nodes)
+    total = 0
+    for node in nodes:
+        connections = G.neighbors(node)
+        subtotal = 0
+        for connection in connections:
+            subtotal += G[node][connection]['weight']
+        total += subtotal
+    return total / len(G)
+
+def weight_centrality(G):
+    nodes = list(G.nodes)
+    total = 0
+    for node in nodes:
+        connections = G.neighbors(node)
+        subtotal = 0
+        for connection in connections:
+            subtotal += G[node][connection]['weight']
+        total += subtotal
+    return total / G.number_of_edges()
+
+def closeness_centrality(G):
+    connectivty = nx.closeness_centrality(G)
+    nodes = list(connectivty.keys())
+    total = 0
+    for node in nodes:
+        total += connectivty[node]
+    return total
+
+def betweenness_centrality(G):
+    connectivty = nx.betweenness_centrality(G)
+    nodes = list(connectivty.keys())
+    total = 0
+    for node in nodes:
+        total += connectivty[node]
+    return total
+
+def eigenvector_centrality(G):
+    connectivty = nx.eigenvector_centrality(G)
+    nodes = list(connectivty.keys())
+    total = 0
+    for node in nodes:
+        total += connectivty[node]
+    return total
+
+
+def measure_nodes(G): # These are measures are the node level
+    # measures are based on https://dshizuka.github.io/networkanalysis/04_measuring.html#components
+    centrality_measures = {}
+    centrality_measures['degree'] = degree_centrality(G)
+    centrality_measures['weight'] = weight_centrality(G)
+    centrality_measures['closeness'] = closeness_centrality(G)
+    centrality_measures['betweenness'] = betweenness_centrality(G)
+    centrality_measures['eigenvector'] = eigenvector_centrality(G)
+    return centrality_measures
+
+def measure_network(G):
+    # measures are based on https://dshizuka.github.io/networkanalysis/04_measuring.html#components
+    network_measures = {}
+    network_measures['nodes'] = G.number_of_nodes()
+    network_measures['edges'] = G.number_of_edges()
+    network_measures['ratio'] = network_measures['edges'] / network_measures['nodes']
+    network_measures['components'] = nx.number_connected_components(G)
+    network_measures['density'] = nx.density(G)
+    network_measures['path'] = nx.average_shortest_path_length(G)
+    network_measures['diameter'] = nx.diameter(G)
+    network_measures['transitivity'] = nx.transitivity(G) # basically global clustering
+    return network_measures
