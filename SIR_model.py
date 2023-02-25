@@ -1,12 +1,3 @@
-'''
-
-Should contain all functions needed to simulate analytically and through model the SI model
-
-Note: doesn't make sense to have 'SI' in funciton names when whole library is called 'SI_model'
-
-'''
-
-import network_manipulation as nm
 import matplotlib.pyplot as plt
 import numpy as np
 import random
@@ -15,19 +6,27 @@ def initialise_potential(G, initial, threshold): #look into more initialisation 
     nodes = list(G.nodes)
     for node in nodes:
         if random.random() < initial:
-            G.nodes[node]['potential'] = threshold + 1 # + 1?
+            G.nodes[node]['potential'] = threshold 
         else:
             G.nodes[node]['potential'] = 0
     return G
 
-def propagate(G, threshold, beta):
+def initialise_status(G):
     nodes = list(G.nodes)
     for node in nodes:
-        connections = G.neighbors(node)
-        if G.nodes[node]['potential'] >= threshold:
-            for connection in connections:
-                if np.random.random() < beta:
-                    G.nodes[connection]['potential'] += G[node][connection]['weight']
+        G.nodes[node]['active'] = True
+    return G
+
+def propagate(G, threshold, beta): # only fires if newly infected, no decay of potential
+    nodes = list(G.nodes)
+    for node in nodes:
+        if G.nodes[node]['active']: # if True i.e. node hasn't fired previously
+            if G.nodes[node]['potential'] >= threshold:
+                G.nodes[node]['active'] = False
+                connections = G.neighbors(node)
+                for connection in connections:
+                    if np.random.random() < beta:
+                        G.nodes[connection]['potential'] += G[node][connection]['weight']
     return G
 
 def activity(G, threshold): # cumsum of infected nodes
@@ -38,9 +37,14 @@ def activity(G, threshold): # cumsum of infected nodes
             infected += 1
     return infected / len(G.nodes)
 
-def simulate(G, initial, threshold, T, beta):
+def firing(G): # can work this out by difference in cumsum!
+    return G
+
+def simulate(G, initial, threshold, T, beta): # add in infected per time step later
     activities = []
     G = initialise_potential(G, initial, threshold)
+    G = initialise_status(G)
+    activities.append(activity(G, threshold))
     for t in range(T):
         G = propagate(G, threshold, beta)
         activities.append(activity(G, threshold))
@@ -50,8 +54,7 @@ def smooth(G, initial, threshold, T, M, beta = 0.6):
     smoothed = []
     runs = []
     for i in range(M):
-        print(str(round((i+1)*100/M, 1)) + '%')
-        #G = initialise_potential(G, initial, threshold)
+        print(str(round((i+1)*100/M, 1)) + '%') # display progress of smoothing
         run = simulate(G, initial, threshold, T, beta)
         runs.append(run)
     for i in range(T):
@@ -68,7 +71,7 @@ def analytic_sol(x, beta, c):
 def integration_const(initial):
     return np.log(initial/(1-initial))
 
-def SI_comparison(G, params, name = 'Placeholder'):
+def comparison(G, params, name = 'Placeholder'):
     plt.figure()
     sim_activity = smooth(G, params['Initial'], params['Threshold'], params['Time'], params['Runs'], params['Beta'])
     sim_time = np.arange(0, params['Time'], 1)
@@ -82,22 +85,3 @@ def SI_comparison(G, params, name = 'Placeholder'):
     plt.legend(loc = 'lower right')
     plt.title('SI model comparison (beta = ' + str(params['Beta'])+ ') (Threshold = ' + str(params['Threshold']) + ')')
     plt.show()
-
-
-# _________________EXPERIMENTAL_________________
-
-'''
-Optimize parameters to match model and analytic solution
-'''
-
-from scipy.optimize import curve_fit
-
-
-
-# TO DO
-
-# function which takes input of all necessary parameters and returns either or all of model or analytical solution
-# should use the visualisation library to display these iA
-
-# Look at initialising in a non-discrete fashion -> have some at bit below threshold etc,
-# then can compare how initial condition affect final result more cleanly

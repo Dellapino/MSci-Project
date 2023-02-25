@@ -88,6 +88,9 @@ def weight_func(x, a, b):
 def weight_func(x, a, b, c):
     return  b * ((x)**c) / np.exp(x*a)
 
+def lambert_w_function():
+    return 0
+
 def log_normal(x, avg, std, a, b):
     return (1/((x+b)/a)*std) * np.exp(-np.log(((x+b)/a)-avg)**2/(2*std**2))
 
@@ -272,7 +275,7 @@ def weight_centrality(G):
         for connection in connections:
             subtotal += G[node][connection]['weight']
         total += subtotal
-    return total / len(G)
+    return total / G.number_of_edges()
 
 def weight_centrality(G):
     nodes = list(G.nodes)
@@ -309,7 +312,6 @@ def eigenvector_centrality(G):
         total += connectivty[node]
     return total
 
-
 def measure_nodes(G): # These are measures are the node level
     # measures are based on https://dshizuka.github.io/networkanalysis/04_measuring.html#components
     centrality_measures = {}
@@ -332,3 +334,8 @@ def measure_network(G):
     network_measures['diameter'] = nx.diameter(G)
     network_measures['transitivity'] = nx.transitivity(G) # basically global clustering
     return network_measures
+
+def print_dict(dict):
+    for key in list(dict.keys()):
+        print(key + ' : ' + str(dict[key]))
+    print('\n')

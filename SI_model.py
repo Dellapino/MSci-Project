@@ -55,7 +55,7 @@ def simulate(N, T, initial, threshold):
     Returns time series of infection activity up till time T
     '''
     activities = []
-    P = intitialise_potential(N, initial, threshold)
+    P = initialise_potential(N, initial, threshold)
     for t in range(T):
         P = propagate(P, N, threshold)
         activities.append(activity(P, threshold))
