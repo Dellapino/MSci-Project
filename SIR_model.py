@@ -28,7 +28,7 @@ def propagate(G, threshold, beta): # only fires if newly infected, no decay of p
                     if np.random.random() < beta:
                         G.nodes[connection]['potential'] += G[node][connection]['weight']
     return G
-
+    
 def activity(G, threshold): # cumsum of infected nodes
     infected = 0
     nodes = list(G.nodes)
@@ -36,6 +36,14 @@ def activity(G, threshold): # cumsum of infected nodes
         if G.nodes[node]['potential'] >= threshold:
             infected += 1
     return infected / len(G.nodes)
+
+def check_susecptible(G): # finds what fraction of nodes are susceptible
+    total = 0
+    nodes = list(G.nodes)
+    for node in nodes:
+        if  G.nodes[node]['active'] == True:
+            total+=1
+    return total / len(G)
 
 def firing(G): # can work this out by difference in cumsum!
     return G
@@ -48,13 +56,14 @@ def simulate(G, initial, threshold, T, beta): # add in infected per time step la
     for t in range(T):
         G = propagate(G, threshold, beta)
         activities.append(activity(G, threshold))
+        #print(check_susecptible(G))
     return activities
 
 def smooth(G, initial, threshold, T, M, beta = 0.6):
     smoothed = []
     runs = []
     for i in range(M):
-        print(str(round((i+1)*100/M, 1)) + '%') # display progress of smoothing
+        #print(str(round((i+1)*100/M, 1)) + '%') # display progress of smoothing
         run = simulate(G, initial, threshold, T, beta)
         runs.append(run)
     for i in range(T):
@@ -73,15 +82,17 @@ def integration_const(initial):
 
 def comparison(G, params, name = 'Placeholder'):
     plt.figure()
-    sim_activity = smooth(G, params['Initial'], params['Threshold'], params['Time'], params['Runs'], params['Beta'])
-    sim_time = np.arange(0, params['Time'], 1)
-    plt.plot(sim_time, sim_activity, label = name)
-    
     analytic_time = np.arange(0, params['Time'], params['Increment'])
     const = integration_const(params['Initial'])
     analytic_activity = analytic_sol(analytic_time, params['Beta'], const)
     plt.plot(analytic_time, analytic_activity, linewidth = 3, label = 'Analytical')
     
+    sim_activity = smooth(G, params['Initial'], params['Threshold'], params['Time'], params['Runs'], params['Beta'])
+    sim_time = np.arange(0, params['Time'], 1)
+    plt.plot(sim_time, sim_activity, label = name)
+    
     plt.legend(loc = 'lower right')
     plt.title('SI model comparison (beta = ' + str(params['Beta'])+ ') (Threshold = ' + str(params['Threshold']) + ')')
     plt.show()
+    
+    return G
