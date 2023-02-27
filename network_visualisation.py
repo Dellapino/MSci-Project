@@ -90,6 +90,9 @@ def collect_frames_nx(G, initial, threshold, T, layout = 'spring'):
         plt.clf()
 
 
+
+
+
 def make_gif():
     frames = []
     imgs = []
