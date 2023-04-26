@@ -263,7 +263,7 @@ def degree_centrality(G):
 
 def degree_centrality(G):
     nodes = G.number_of_nodes()
-    edges = G.number_of_edges()
+    edges = G.number_of_edges() * 2
     return edges / nodes
 
 def weight_centrality(G):
@@ -286,7 +286,7 @@ def weight_centrality(G):
         for connection in connections:
             subtotal += G[node][connection]['weight']
         total += subtotal
-    return total / G.number_of_edges()
+    return total / (G.number_of_edges() * 2)
 
 def closeness_centrality(G):
     connectivty = nx.closeness_centrality(G)

@@ -1,101 +1,128 @@
+'''
+The following is taken from 'making neuroSIR work.ipynb
+'''
+
+
+
+##################### LIBRARIES #################################################################################################################################################
+
+
+
 import matplotlib.pyplot as plt
 from scipy.integrate import odeint
 import numpy as np
 import random
-
-def initialise_potential(G, initial, threshold): #look into more initialisation schemes
-    nodes = list(G.nodes)
-    for node in nodes:
-        if random.random() < initial:
-            G.nodes[node]['potential'] = threshold 
-        else:
-            G.nodes[node]['potential'] = 0
-    return G
-
-def initialise_status(G):
-    nodes = list(G.nodes)
-    for node in nodes:
-        G.nodes[node]['active'] = True
-    return G
-
-def propagate(G, threshold, beta): # only fires if newly infected, no decay of potential
-    nodes = list(G.nodes)
-    for node in nodes:  
-        if G.nodes[node]['active']: # if True i.e. node hasn't fired previously
-            if G.nodes[node]['potential'] >= threshold:
-                G.nodes[node]['active'] = False
-                connections = G.neighbors(node)
-                for connection in connections:
-                    if np.random.random() < beta:
-                        G.nodes[connection]['potential'] += G[node][connection]['weight']
-    return G
-    
-def propagate(G, threshold, beta): # only fires if newly infected, no decay of potential
-    nodes = list(G.nodes)
-    update_dict = {}
-    for node in nodes: # initialise dict to keep track of which nodes need to be updated and by how much
-        update_dict[node] = 0
-    
-    for node in nodes:
-        if G.nodes[node]['active']:
-            if G.nodes[node]['potential'] >= threshold:
-                connections = list(G.neighbors(node))
-                for connection in connections:
-                    if np.random.random() < beta:
-                        update_dict[connection] += G[node][connection]['weight']
-                G.nodes[node]['active'] = False
-                
-    for node in nodes: # carrying out updates by looping over all nodes
-        G.nodes[node]['potential'] += update_dict[node]
-    
-    return G    
+import networkx as nx
+import os
+import glob
+from PIL import Image
 
 
-def propagate(G, threshold, beta): # only fires if newly infected, no decay of potential
-    nodes = list(G.nodes)
-    update_dict = {}
-    for node in nodes: # initialise dict to keep track of which nodes need to be updated and by how much
-        update_dict[node] = 0
-    
-    for node in nodes:
-        if G.nodes[node]['active']:
-            if G.nodes[node]['potential'] >= threshold:
-                connections = list(G.neighbors(node))
-                for connection in connections:
-                    update_dict[connection] += beta * G[node][connection]['weight'] # improvement
-                G.nodes[node]['active'] = False
-                
-    for node in nodes: # carrying out updates by looping over all nodes
-        G.nodes[node]['potential'] += update_dict[node]
-    
-    return G    
 
-def propagate(G, threshold, beta): # only fires if newly infected, no decay of potential
+##################### INITIALISATION #################################################################################################################################################
+
+
+
+def initialise_potential(G, params, scheme = 'random'): #look into more initialisation schemes
     nodes = list(G.nodes)
-    update_dict = {}
-    for node in nodes: # initialise dict to keep track of which nodes need to be updated and by how much
-        update_dict[node] = 0
     
-    for node in nodes:
-        if G.nodes[node]['active']:
-            if G.nodes[node]['potential'] >= threshold:
-                connections = list(G.neighbors(node))
-                for connection in connections:
-                    update_dict[connection] += beta * G[node][connection]['weight'] 
-                G.nodes[node]['active'] = False
-                
-                
-    for node in nodes: # carrying out updates by looping over all nodes
-        update = update_dict[node]
-        if update > 0:
-            G.nodes[node]['potential'] += update
-        else:
-            G.nodes[node]['potential'] += -15
+    if scheme == 'random':
+        for node in nodes:
+            if random.random() < params['Initial']:
+                G.nodes[node]['potential'] = params['Threshold']
+            else:
+                G.nodes[node]['potential'] = 0
+    
+    elif scheme == 'local':
+        origin = random.choice(nodes)
+        G.nodes[origin]['potential'] = params['Threshold'] 
         
-    return G    
+        # compute the shortest path lengths from the start node to all other nodes
+        distances = nx.shortest_path_length(G, source=origin)
+
+        # sort the nodes by their distance from the start node
+        sorted_nodes = sorted(distances.items(), key=lambda x: x[1])
+
+        # compute the number of nodes that represent 5% of the total number of nodes in the graph
+        num_nodes = len(G.nodes)
+        num_closest_nodes = int(num_nodes * params['Initial'])
+
+        # extract the closest nodes
+        closest_nodes = [node for node, distance in sorted_nodes[:num_closest_nodes]]
+
+        for node in closest_nodes:
+            G.nodes[node]['potential'] = params['Threshold']
+            
+    return G
+
+def initialise_status(G): # Assigns node a initial status
+    '''
+    1   :   susceptible
+    0   :   infected
+    -1  :   removed
+    '''
+    nodes = list(G.nodes)
+    for node in nodes:
+        if G.nodes[node]['potential'] == 0:
+            G.nodes[node]['status'] = 1
+        else:
+            G.nodes[node]['status'] = 0
+    return G
+
+def initialise_weight(G, weight): # Sets weight to all edges to 'weight'
+    nodes = list(G.nodes)
+    for node in nodes:
+        connections = list(G.neighbors(node))
+        for connection in connections:
+            G[node][connection]['weight'] = weight
+    return G
 
 
-def activity(G, threshold): # cumsum of infected nodes
+
+#####################  PROPAGATION #################################################################################################################################################
+
+
+
+
+def propagate(G, threshold, beta, gamma): # only fires if newly infected, no decay of potential
+    nodes = list(G.nodes)
+    
+    update_dict = {}
+    for node in nodes: # initialise dict to keep track of which nodes need to be updated and by how much
+        update_dict[node] = 0
+    
+    for node in nodes: # finding which potential to increase
+        if G.nodes[node]['status'] == 0: # if node is infected it should transmit disease and have prob of becoming recovered, first as these are actors
+            connections = list(G.neighbors(node))
+            for connection in connections:
+                update_dict[connection] += beta * G[node][connection]['weight'] 
+                
+            #comp = 1 - np.exp(-gamma)
+            comp = gamma
+            
+            if np.random.random() < comp: # some chance for infected nodes to become removed nodes
+                G.nodes[node]['status'] = -1
+    
+    for node in nodes: # carrying out updates by looping over all susceptible nodes to increase potentials
+        if G.nodes[node]['status'] == 1: # if a node is susceptible, it should be able to gain potential and can become infected
+            G.nodes[node]['potential'] += update_dict[node]
+            if G.nodes[node]['potential'] >= threshold: # if update pushes above threshold then infected
+                G.nodes[node]['status'] = 0
+            else: # otherwise there is decay
+                pot = G.nodes[node]['potential']
+                #decay = pot * np.exp(-pot / threshold)
+                decay = 30
+                G.nodes[node]['potential'] -= decay
+
+    return G
+
+
+
+#####################  MEASUREMENTS #################################################################################################################################################
+
+
+
+def check_activity(G, threshold): # cumsum of infected nodes
     infected = 0
     nodes = list(G.nodes)
     for node in nodes:
@@ -103,52 +130,106 @@ def activity(G, threshold): # cumsum of infected nodes
             infected += 1
     return infected / len(G.nodes)
 
+def check_activity(G): # cumsum of infected nodes
+    total = 0
+    nodes = list(G.nodes)
+    for node in nodes:
+        if  G.nodes[node]['status'] == 0:
+            total+=1
+    return total / len(G)
+
+def check_removed(G):
+    total = 0
+    nodes = list(G.nodes)
+    for node in nodes:
+        if  G.nodes[node]['status'] == -1:
+            total+=1
+    return total / len(G)
+
 def check_susecptible(G): # finds what fraction of nodes are susceptible
     total = 0
     nodes = list(G.nodes)
     for node in nodes:
-        if  G.nodes[node]['active'] == True:
+        if  G.nodes[node]['status'] == 1:
             total+=1
     return total / len(G)
-'''
-def activity(G, threshold): # cumsum of infected nodes
-    return 1 - check_susecptible(G)
-'''
 
-def firing(G): # can work this out by difference in cumsum!
-    return G
+def check_states(G):
+    s = check_susecptible(G)
+    i = check_activity(G)
+    r = check_removed(G)
+    return s, i, r
 
-def simulate(G, initial, threshold, T, beta): # add in infected per time step later
-    activities = []
+
+
+#####################  RUNNING #################################################################################################################################################
+
+
+
+def simulate(G, initial, threshold, T, beta, gamma): # add in infected per time step later
+    susceptible = []
+    infected = []
+    removed = []
+    
     G = initialise_potential(G, initial, threshold)
     G = initialise_status(G)
-    activities.append(activity(G, threshold))
+    
+    s, i, r = check_states(G)
+    susceptible.append(s)
+    infected.append(i)
+    removed.append(r)
+    
     for t in range(T):
-        G = propagate(G, threshold, beta)
-        activities.append(activity(G, threshold))
-        #print(check_susecptible(G))
-    return activities
+        G = propagate(G, threshold, beta, gamma)
+        s, i, r = check_states(G)
+        susceptible.append(s)
+        infected.append(i)
+        removed.append(r)
+        
+    return susceptible, infected, removed
 
-def smooth(G, initial, threshold, T, M, beta = 0.6):
-    smoothed = []
-    runs = []
+def smooth(G, initial, threshold, T, M, beta, gamma):
+    s_smooth = []
+    i_smooth = []
+    r_smooth = []
+    s_runs = []
+    i_runs = []
+    r_runs = []
     for i in range(M):
         #print(str(round((i+1)*100/M, 1)) + '%') # display progress of smoothing
-        run = simulate(G, initial, threshold, T, beta)
-        runs.append(run)
-    for i in range(T):
+        s_run, i_run, r_run = simulate(G, initial, threshold, T, beta, gamma)
+        s_runs.append(s_run)
+        i_runs.append(i_run)
+        r_runs.append(r_run)
+    
+    for i in range(T): # smoothing susceptible time series
         total = 0
         for j in range(M):
-            total += runs[j][i]     
+            total += s_runs[j][i]     
         total = total / M   
-        smoothed.append(total)
-    return smoothed
+        s_smooth.append(total)
+        
+    for i in range(T): # smoothing infected time series
+        total = 0
+        for j in range(M):
+            total += i_runs[j][i]     
+        total = total / M   
+        i_smooth.append(total)
 
-def analytic_sol(x, beta, c):
-    return np.exp(beta*x+c) / (1 + np.exp(beta*x+c))
+    for i in range(T): # smoothing recovered time series
+        total = 0
+        for j in range(M):
+            total += r_runs[j][i]     
+        total = total / M   
+        r_smooth.append(total)
+        
+    return s_smooth, i_smooth, r_smooth
 
-def integration_const(initial):
-    return np.log(initial/(1-initial))
+
+
+##################### ANALYTICAL #################################################################################################################################################
+
+
 
 def deriv(y, t, N, beta, gamma):
     S, I, R = y
@@ -156,7 +237,7 @@ def deriv(y, t, N, beta, gamma):
     dIdt = beta * S * I / N - gamma * I
     dRdt = gamma * I
     return dSdt, dIdt, dRdt
-'''
+
 def analytic_sol(G, params):
     N = len(G)
     I0 = np.ceil(params['Initial'] * N)
@@ -167,39 +248,102 @@ def analytic_sol(G, params):
     ret = odeint(deriv, y0, t, args=(N, params['Beta'], params['Gamma']))
     S, I, R = ret.T
     return S/N, I/N, R/N
-'''
+
+
+
 def comparison(G, params, name = 'Placeholder'):
-    plt.figure()
-    analytic_time = np.arange(0, params['Time'], params['Increment'])
-    const = integration_const(params['Initial'])
-    analytic_activity = analytic_sol(analytic_time, params['Beta'], const)
-    plt.plot(analytic_time, analytic_activity, linewidth = 3, label = 'Analytical')
-    
-    sim_activity = smooth(G, params['Initial'], params['Threshold'], params['Time'], params['Runs'], params['Beta'])
-    sim_time = np.arange(0, params['Time'], 1)
-    plt.plot(sim_time, sim_activity, label = name)
-    
-    plt.legend(loc = 'lower right')
-    plt.title('SI model comparison (beta = ' + str(params['Beta'])+ ') (Threshold = ' + str(params['Threshold']) + ')')
-    plt.show()
-    
-    return G
-'''
-def comparison(G, params, name = 'Placeholder'):
-    plt.figure()
+    plt.figure(figsize=(8, 6))
+    plt.grid()
+    #plt.ylim(0, 1.2)
     analytic_time = np.arange(0, params['Time'])
-    S, I, analytic_activity = analytic_sol(G, params)
-    infected = np.cumsum(I)
-    #plt.plot(analytic_time, analytic_activity, linewidth = 3, label = 'Recovered')
-    plt.plot(analytic_time, infected, linewidth = 3, label = 'Infected')
+    S, I, R = analytic_sol(G, params)
+
+    plt.plot(analytic_time, S, linewidth = 3, label = 'Susceptible', color = 'b', linestyle = 'dashed', alpha = 1)
+    plt.plot(analytic_time, I, linewidth = 3, label = 'Infected', color = 'r', linestyle = 'dashed', alpha = 1)
+    plt.plot(analytic_time, R, linewidth = 3, label = 'Recovered', color = 'g', linestyle = 'dashed', alpha = 1)
     
-    sim_activity = smooth(G, params['Initial'], params['Threshold'], params['Time'], params['Runs'], params['Beta'])
-    sim_time = np.arange(0, params['Time'], 1)
-    plt.plot(sim_time, sim_activity, label = name)
+    #eqn_infected = np.cumsum(I)
+    #plt.plot(analytic_time, eqn_infected, linewidth = 3, label = 'Infected', color = 'r')
     
-    plt.legend(loc = 'lower right')
-    plt.title('SIR (beta = ' + str(params['Beta']) + ') (Gamma = ' + str(params['Gamma']) + ') (Threshold = ' + str(params['Threshold']) + ')')
+    sim_time = np.arange(0, params['Time'])
+    s_sim, i_sim, r_sim = smooth(G, params['Initial'], params['Threshold'], params['Time'], params['Runs'], params['Beta'], params['Gamma'])
+    
+
+    plt.plot(sim_time, s_sim, color = 'b')
+    plt.plot(sim_time, i_sim,  color = 'r')
+    plt.plot(sim_time, r_sim,  color = 'g')
+    
+    #sim_infected = np.cumsum(i_sim)
+    #plt.plot(sim_time, sim_infected, label = name)
+    
+    plt.legend(loc = 'center right')
+    plt.title('Neuron SIR (beta = ' + str(params['Beta']) + ') (Gamma = ' + str(params['Gamma']) + ') (Threshold = ' + str(params['Threshold']) + ')')
     plt.show()
+       
+    #print('Final simulated infected: ' + str(sim_infected[-1]))
+    #print('Final analytic infected: ' + str(eqn_infected[-1]))
     
     return G
-    '''
+
+
+##################### VISUALISATION #################################################################################################################################################
+
+
+
+def find_colours(G):
+    colours = []
+    for node in list(G.nodes):
+        if G.nodes[node]['status'] == 1:
+            colours.append('blue')
+        elif G.nodes[node]['status'] == 0:
+            colours.append('red')
+        elif G.nodes[node]['status'] == -1:
+            colours.append('green')
+        else:
+            colours.append('purple')
+    return colours
+
+def visualise(G, params, seed_val):
+    
+    files = glob.glob('/Users/ali/MSci Project/IF visualisation/frame*.png')
+    for f in files:
+        os.remove(f)
+    
+    G = initialise_potential(G, params['Initial'], params['Threshold'])
+    G = initialise_status(G)
+    plt.figure(figsize = (12, 8))
+    if seed_val == None:
+        positions = nx.spring_layout(G)
+    else:
+        positions = nx.spring_layout(G, seed = seed_val)
+    
+    colours = find_colours(G)
+    plt.text(10,10,'time')
+    nx.draw_networkx(G, pos = positions, with_labels = 0, node_size = 100, node_color = colours, alpha = 0.5)
+    plt.savefig('/Users/ali/MSci Project/IF visualisation/frame' + str(0))
+    plt.clf()
+    
+    for t in range(params['Time']):
+        G = propagate(G, params['Threshold'], params['Beta'], params['Gamma'])
+        colours = find_colours(G)
+        nx.draw_networkx(G, pos = positions, with_labels = 0, node_size = 100, node_color = colours, alpha = 0.5)
+        plt.savefig('/Users/ali/MSci Project/IF visualisation/frame' + str(t+1))
+        plt.clf()
+        
+def make_gif():
+    frames = []
+    imgs = []
+    path = '/Users/ali/MSci Project/IF visualisation/frame'
+    total_frames = len(os.listdir('/Users/ali/MSci Project/IF visualisation/'))
+    for i in range(total_frames):
+        imgs.append(path + str(i) + '.png')
+    for i in imgs:
+        new_frame = Image.open(i)
+        frames.append(new_frame)
+
+    frames[0].save('/Users/ali/MSci Project/IF visualisation.gif', 
+                format='GIF',
+                append_images=frames[1:],
+                save_all=True,
+                duration=500) # duration of each frame in milliseconds!
+    return frames

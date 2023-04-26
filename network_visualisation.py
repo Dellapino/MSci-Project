@@ -8,6 +8,7 @@ import networkx as nx
 import matplotlib.pyplot as plt
 import glob
 from PIL import Image
+import SIR_model as sir
 
 def plot(N, P, T, layout = 'spring'):
     files = glob.glob('/Users/ali/MSci Project/IF visualisation/frame*.png')
@@ -89,9 +90,10 @@ def collect_frames_nx(G, initial, threshold, T, layout = 'spring'):
         plt.savefig('/Users/ali/MSci Project/IF visualisation/frame' + str(t))
         plt.clf()
 
-
-
-
+def SIR_frames(G, params): # Nani ???
+    files = glob.glob('/Users/ali/MSci Project/IF visualisation/frame*.png')
+    for f in files:
+        os.remove(f)
 
 def make_gif():
     frames = []
