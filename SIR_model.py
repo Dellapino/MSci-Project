@@ -23,7 +23,7 @@ from PIL import Image
 
 
 
-def initialise_potential(G, params, scheme = 'random'): #look into more initialisation schemes
+def initialise_potential(G, params, scheme = 'local'): #look into more initialisation schemes
     nodes = list(G.nodes)
     
     if scheme == 'random':
@@ -34,6 +34,7 @@ def initialise_potential(G, params, scheme = 'random'): #look into more initiali
                 G.nodes[node]['potential'] = 0
     
     elif scheme == 'local':
+        
         origin = random.choice(nodes)
         G.nodes[origin]['potential'] = params['Threshold'] 
         
@@ -49,9 +50,15 @@ def initialise_potential(G, params, scheme = 'random'): #look into more initiali
 
         # extract the closest nodes
         closest_nodes = [node for node, distance in sorted_nodes[:num_closest_nodes]]
-
+        
+        for node in nodes:
+            G.nodes[node]['potential'] = 0
+        
         for node in closest_nodes:
             G.nodes[node]['potential'] = params['Threshold']
+        
+    else:
+        print('POTENTIAL NOT INITIALISED')
             
     return G
 
@@ -84,7 +91,7 @@ def initialise_weight(G, weight): # Sets weight to all edges to 'weight'
 
 
 
-def propagate(G, threshold, beta, gamma): # only fires if newly infected, no decay of potential
+def propagate(G, params): 
     nodes = list(G.nodes)
     
     update_dict = {}
@@ -94,24 +101,22 @@ def propagate(G, threshold, beta, gamma): # only fires if newly infected, no dec
     for node in nodes: # finding which potential to increase
         if G.nodes[node]['status'] == 0: # if node is infected it should transmit disease and have prob of becoming recovered, first as these are actors
             connections = list(G.neighbors(node))
-            for connection in connections:
-                update_dict[connection] += beta * G[node][connection]['weight'] 
-                
-            #comp = 1 - np.exp(-gamma)
-            comp = gamma
+            for connection in connections: # spread infection to all neighbours
+                update_dict[connection] += params['Beta'] * G[node][connection]['weight'] 
             
-            if np.random.random() < comp: # some chance for infected nodes to become removed nodes
+            if np.random.random() < params['Gamma']: # some chance for infected nodes to become removed nodes
                 G.nodes[node]['status'] = -1
     
     for node in nodes: # carrying out updates by looping over all susceptible nodes to increase potentials
         if G.nodes[node]['status'] == 1: # if a node is susceptible, it should be able to gain potential and can become infected
             G.nodes[node]['potential'] += update_dict[node]
-            if G.nodes[node]['potential'] >= threshold: # if update pushes above threshold then infected
+            if G.nodes[node]['potential'] >= params['Threshold']: # if update pushes above threshold then infected
                 G.nodes[node]['status'] = 0
             else: # otherwise there is decay
                 pot = G.nodes[node]['potential']
-                #decay = pot * np.exp(-pot / threshold)
-                decay = 30
+                
+                decay = pot * np.exp(-pot / params['Threshold'])
+                
                 G.nodes[node]['potential'] -= decay
 
     return G
@@ -166,12 +171,12 @@ def check_states(G):
 
 
 
-def simulate(G, initial, threshold, T, beta, gamma): # add in infected per time step later
+def simulate(G, params): # add in infected per time step later
     susceptible = []
     infected = []
     removed = []
     
-    G = initialise_potential(G, initial, threshold)
+    G = initialise_potential(G, params)
     G = initialise_status(G)
     
     s, i, r = check_states(G)
@@ -179,8 +184,8 @@ def simulate(G, initial, threshold, T, beta, gamma): # add in infected per time 
     infected.append(i)
     removed.append(r)
     
-    for t in range(T):
-        G = propagate(G, threshold, beta, gamma)
+    for t in range(params['Time']-1):
+        G = propagate(G, params)
         s, i, r = check_states(G)
         susceptible.append(s)
         infected.append(i)
@@ -188,16 +193,18 @@ def simulate(G, initial, threshold, T, beta, gamma): # add in infected per time 
         
     return susceptible, infected, removed
 
-def smooth(G, initial, threshold, T, M, beta, gamma):
+def smooth(G, params):
     s_smooth = []
     i_smooth = []
     r_smooth = []
     s_runs = []
     i_runs = []
     r_runs = []
+    T = params['Time']
+    M = params['Runs']
     for i in range(M):
         #print(str(round((i+1)*100/M, 1)) + '%') # display progress of smoothing
-        s_run, i_run, r_run = simulate(G, initial, threshold, T, beta, gamma)
+        s_run, i_run, r_run = simulate(G, params)
         s_runs.append(s_run)
         i_runs.append(i_run)
         r_runs.append(r_run)
