@@ -1,3 +1,10 @@
+'''
+
+Collection of functions to probe networks
+
+'''
+
+
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
@@ -17,27 +24,28 @@ def analyse_graph(graph):
         weights += weight
     return degrees, weights
 
-def linear_binning(data, num_bins = 100, norm = 1): 
-    '''
-    finds midpoints and frequencies of data after binning, removes any zeros
-    present in the data
-    
-    parameters: weights:    array
-                            contains all weights present in a graph
-    
-    returns:    midpoints:  array
-                            midpoints of histogram bins
-                freqs:      array
-                            frequecies of histogram bins
-    '''                     
-    freqs, edges = np.histogram(data, bins = num_bins, density = norm)
-    midpoints = edges[:-1] + np.diff(edges)/2    
+def linear_binning(data, num_bins = 15, error = False):                     
+    freqs, bin_edges = np.histogram(data, bins = num_bins, density = 1)
+    midpoints = bin_edges[:-1] + np.diff(bin_edges)/2   
     to_remove = np.where(freqs == 0)[0]
-    midpoints = np.delete(midpoints, to_remove)
-    freqs = np.delete(freqs, to_remove)
-    return midpoints, freqs
+    midpoints = np.delete(midpoints, to_remove) 
+    
+    if error:
+        data = np.array(data)
+        bin_vals = []
+        for i in range(len(bin_edges)-1):
+            bin_vals.append(data[(data>bin_edges[i]) * (data<bin_edges[i+1])])
+        stds = np.array([np.std(bin_val)/np.sqrt(freqs[i]) for i, bin_val in enumerate(bin_vals)])
+        
+        stds = np.delete(stds, to_remove)
+        freqs = np.delete(freqs, to_remove)
+        return midpoints[0:], freqs[0:], stds[0:]  
+    else:
+        freqs = np.delete(freqs, to_remove)
+        return midpoints[0:], freqs[0:]
 
-def log_binning(data, scale = 1.2, normed = True):
+
+def log_binning(data, scale = 1.2, normed = True, error = False):
     if scale <= 1:
         raise ValueError('Function requires scale > 1')
     
@@ -60,12 +68,22 @@ def log_binning(data, scale = 1.2, normed = True):
         
     freqs, edges = np.histogram(data, bins = bin_edges, density = 0)
     midpoints = edges[:-1] + np.diff(edges)/2    
-    
     to_remove = np.where(freqs == 0)[0]
     midpoints = np.delete(midpoints, to_remove)
-    freqs = np.delete(freqs, to_remove)
     
-    return midpoints[0:], freqs[0:]
+    if error:
+        data = np.array(data)
+        bin_vals = []
+        for i in range(len(bin_edges)-1):
+            bin_vals.append(data[(data>bin_edges[i]) * (data<bin_edges[i+1])])
+        stds = np.array([np.std(bin_val)/np.sqrt(freqs[i]) for i, bin_val in enumerate(bin_vals)])
+        
+        stds = np.delete(stds, to_remove)
+        freqs = np.delete(freqs, to_remove)
+        return midpoints[0:], freqs[0:], stds[0:]  
+    else:
+        freqs = np.delete(freqs, to_remove)
+        return midpoints[0:], freqs[0:]
 
 def linear(x, m, c):
     return m*x + c
@@ -91,8 +109,8 @@ def weight_func(x, a, b, c):
 def lambert_w_function():
     return 0
 
-def log_normal(x, avg, std, a, b):
-    return (1/((x+b)/a)*std) * np.exp(-np.log(((x+b)/a)-avg)**2/(2*std**2))
+def log_normal(x, mu, sigma):
+    return (1 / (x * sigma * np.sqrt(2 * np.pi))) * np.exp(-(np.log(x) - mu)**2 / (2 * sigma**2))
 
 def maxwell_boltzmann(x, a, b, c, d):
     return d * (((x+b)/c)**2) * np.exp((-((x+b)/c)**2)/(2*a**2)) / (a**3) 
@@ -109,7 +127,7 @@ def check_fit(fit_func, bin_func, data, params, error = False, plot = False, plo
     
     if error:
         x, y, e = bin_func(data, *params)
-        fit, cov = curve_fit(fit_func, x, y, sigma = e, absolute_sigma = 1)
+        fit, cov = curve_fit(fit_func, x, y, sigma = e, absolute_sigma = 0)
         if plot:
             plt.errorbar(x, y, yerr = e, fmt = 'x')
     else:
@@ -146,10 +164,14 @@ def plot_fit(fit_func, fit_params, plot_scale = 'log'):
     plt.show()
     
 
-def compare_scale(fit_func, data, scales, normed, show_all = False):  
+def compare_scale(fit_func, data, scales, normed, error = False, show_all = False):  
     avg_errs = []
     for scale in scales:
-        _, perr = check_fit(fit_func, log_binning, data, [scale, normed], plot_scale='log')
+        if error:
+            _, perr = check_fit(fit_func, log_binning, data, [scale, normed, error], error, plot_scale='log')
+        else:
+            _, perr = check_fit(fit_func, log_binning, data, [scale, normed], plot_scale='log')
+
         avg_err = sum(perr) / len(perr)
         avg_errs.append(avg_err)
 
@@ -165,7 +187,21 @@ def optimize_scale(weights, precision = 0.01):
     scales = np.arange(1.5, 3.0, precision)
     best_scale = compare_scale(weight_func, weights, scales, False, False)
     return best_scale
+
+def compare_bin_num(fit_func, data, bin_nums, error, show_all = False):
+    avg_errs = []
+    for bin_num in bin_nums:
+        _, perr = check_fit(fit_func, linear_binning, data, [bin_num, error], error, False, 'linear')
+        avg_err = sum(perr) / len(perr)
+        avg_errs.append(avg_err)
     
+    best = avg_errs.index(min(avg_errs))
+    if show_all:
+        tabulated_data = [[bin_nums[i], round(avg_errs[i], 2)] for i in range(len(bin_nums))]
+        print(tabulate(tabulated_data, headers = ['scaling factor', 'average error']))
+    else:
+        print(tabulate([[bin_nums[best], round(avg_errs[best], 2)]], headers=['best scaling factor', 'best average error']))
+    return bin_nums[best], avg_errs[best] # pass these into optimize_scale
 '''
 Current task: sample from distributions
     1. degree dist - Done

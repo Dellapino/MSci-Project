@@ -23,8 +23,10 @@ from PIL import Image
 
 
 
-def initialise_potential(G, params, scheme = 'local'): #look into more initialisation schemes
+def initialise_potential(G, params): #look into more initialisation schemes
     nodes = list(G.nodes)
+    
+    scheme = params['Scheme']
     
     if scheme == 'random':
         for node in nodes:
@@ -49,7 +51,7 @@ def initialise_potential(G, params, scheme = 'local'): #look into more initialis
         num_closest_nodes = int(num_nodes * params['Initial'])
 
         # extract the closest nodes
-        closest_nodes = [node for node, distance in sorted_nodes[:num_closest_nodes]]
+        closest_nodes = [node for node, distance in sorted_nodes[num_nodes - num_closest_nodes:]]
         
         for node in nodes:
             G.nodes[node]['potential'] = 0
